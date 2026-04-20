@@ -1,0 +1,2665 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>QuoteFlash · Preventivo Rapido</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-title" content="QuoteFlash">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- jsQR: fallback decoder QR per browser senza BarcodeDetector (es. iOS < 17) -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --border: #2a2a2a;
+  --border2: #333;
+  --accent: #e8ff47;
+  --accent-dim: #b8cc2a;
+  --text: #f0f0f0;
+  --text2: #888;
+  --text3: #555;
+  --danger: #ff4f4f;
+  --green: #2ecc71;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  overflow-x: hidden;
+}
+
+/* ── LAYOUT ── */
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,10,10,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+.logo span { color: var(--accent); }
+.logo-sub { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; letter-spacing: 0.1em; margin-top: 1px; }
+
+.step-indicator {
+  display: flex; gap: 6px; align-items: center;
+}
+.step-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border2); transition: all 0.3s;
+}
+.step-dot.active { background: var(--accent); width: 18px; border-radius: 3px; }
+.step-dot.done { background: var(--accent-dim); }
+
+/* ── SCREENS ── */
+.screen { display: none; flex: 1; flex-direction: column; animation: fadeIn 0.2s ease; }
+.screen.active { display: flex; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.content { padding: 24px 20px; flex: 1; }
+
+.screen-title {
+  font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace;
+  color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.screen-heading {
+  font-size: 26px; font-weight: 800; color: var(--text);
+  line-height: 1.15; margin-bottom: 24px; letter-spacing: -0.5px;
+}
+
+/* ── FORM ELEMENTS ── */
+.field { margin-bottom: 16px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 500;
+  font-family: 'DM Mono', monospace; color: var(--text2);
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
+}
+.field input, .field select, .field textarea {
+  width: 100%; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text); font-family: 'Syne', sans-serif; font-size: 16px;
+  padding: 14px 16px; outline: none; transition: border-color 0.2s;
+  -webkit-appearance: none;
+}
+.field input:focus, .field select:focus { border-color: var(--accent); }
+.field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px; }
+
+/* ── SERVIZI GRID ── */
+.servizi-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 20px;
+}
+.servizio-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px;
+  cursor: pointer; transition: all 0.18s;
+  position: relative; overflow: hidden;
+  user-select: none;
+}
+.servizio-tile:active { transform: scale(0.97); }
+.servizio-tile.selected {
+  border-color: var(--accent);
+  background: rgba(232, 255, 71, 0.06);
+}
+.servizio-tile.selected::after {
+  content: '✓';
+  position: absolute; top: 8px; right: 10px;
+  font-size: 11px; font-weight: 700;
+  color: var(--accent); font-family: 'DM Mono', monospace;
+}
+.tile-icon { font-size: 22px; margin-bottom: 8px; }
+.tile-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.tile-price { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text2); }
+
+/* ── QUANTITÀ ── */
+.qty-row {
+  display: flex; align-items: center; gap: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); overflow: hidden; width: fit-content;
+}
+.qty-btn {
+  width: 44px; height: 44px; background: transparent;
+  border: none; color: var(--text); font-size: 20px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; transition: background 0.15s;
+}
+.qty-btn:active { background: var(--surface2); }
+.qty-val {
+  width: 48px; text-align: center;
+  font-size: 18px; font-weight: 700;
+  font-family: 'DM Mono', monospace; color: var(--text);
+  border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  line-height: 44px;
+}
+
+/* ── RIEPILOGO ── */
+.riepilogo-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 14px;
+}
+.riepilogo-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.riepilogo-row:last-child { border-bottom: none; }
+.riepilogo-row .name { color: var(--text2); flex: 1; }
+.riepilogo-row .qty-label { color: var(--text3); font-size: 12px; font-family: 'DM Mono', monospace; margin: 0 12px; }
+.riepilogo-row .price { font-weight: 700; font-family: 'DM Mono', monospace; color: var(--text); }
+
+.totale-box {
+  background: var(--accent); border-radius: var(--radius);
+  padding: 18px 20px; display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px;
+}
+.totale-label { font-size: 13px; font-weight: 700; color: #0a0a0a; letter-spacing: 0.05em; }
+.totale-value { font-size: 28px; font-weight: 800; color: #0a0a0a; font-family: 'DM Mono', monospace; }
+
+.margine-box {
+  background: var(--surface2); border-radius: var(--radius-sm);
+  padding: 12px 16px; display: flex; justify-content: space-between;
+  margin-bottom: 20px; border: 1px solid var(--border);
+}
+.margine-item { text-align: center; }
+.margine-item .mlabel { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.margine-item .mvalue { font-size: 16px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--green); }
+.margine-item .mvalue.warn { color: #f39c12; }
+
+/* ── BUTTONS ── */
+.btn {
+  width: 100%; padding: 16px; border-radius: var(--radius);
+  font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700;
+  cursor: pointer; border: none; transition: all 0.18s; margin-bottom: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--accent); color: #0a0a0a; }
+.btn-primary:hover { background: #d4eb2a; }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border2); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-whatsapp { background: #25d366; color: #fff; }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+
+.btn-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.btn-row .btn { flex: 1; margin-bottom: 0; }
+
+/* ── NOTE ── */
+.note-field textarea {
+  min-height: 90px; resize: vertical; font-size: 14px; line-height: 1.5;
+}
+
+/* ── SEPARATORE ── */
+.sep { height: 1px; background: var(--border); margin: 20px 0; }
+
+/* ── BADGE STATUS ── */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(46,204,113,0.12); border: 1px solid rgba(46,204,113,0.3);
+  border-radius: 999px; padding: 4px 12px;
+  font-size: 11px; font-family: 'DM Mono', monospace; color: var(--green);
+  margin-bottom: 16px;
+}
+.status-pill.pending { background: rgba(232,255,71,0.1); border-color: rgba(232,255,71,0.3); color: var(--accent); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ── IMPOSTAZIONI (nascosta, accessibile) ── */
+.settings-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  flex-direction: column; justify-content: flex-end;
+}
+.settings-overlay.open { display: flex; }
+.settings-sheet {
+  background: var(--surface); border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border); padding: 24px 20px 40px;
+  max-height: 85vh; overflow-y: auto;
+}
+.settings-title { font-size: 18px; font-weight: 800; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+.settings-close { background: var(--surface2); border: none; color: var(--text2); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+
+/* ── SNACKBAR ── */
+.snackbar {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: var(--text); color: var(--bg); border-radius: 999px;
+  padding: 12px 24px; font-size: 14px; font-weight: 600;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index: 300;
+  white-space: nowrap; pointer-events: none;
+}
+.snackbar.show { transform: translateX(-50%) translateY(0); }
+
+/* ── BOTTOM NAV ── */
+.bottom-safe { height: env(safe-area-inset-bottom, 16px); }
+
+/* ── SETTINGS ICON ── */
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text2); font-size: 16px;
+}
+
+/* ── INFO VUOTO ── */
+.empty-state {
+  text-align: center; padding: 32px 20px; color: var(--text3);
+  font-family: 'DM Mono', monospace; font-size: 13px; line-height: 1.8;
+}
+
+/* ── SPINNER ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid rgba(10,10,10,0.3); border-top-color: #0a0a0a;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+.spinner-light {
+  border: 2px solid rgba(240,240,240,0.2); border-top-color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════
+   PNEUMATICI — nuovo step
+═══════════════════════════════════════════════════════ */
+.action-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-bottom: 18px;
+}
+.action-tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: pointer; transition: all 0.18s;
+  user-select: none;
+}
+.action-tile:active { transform: scale(0.97); }
+.action-tile:hover { border-color: var(--accent); }
+.action-tile .at-icon { font-size: 28px; }
+.action-tile .at-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.action-tile .at-sub {
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+.tire-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 12px;
+  align-items: center;
+}
+.tire-card .tc-badge {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface2); border: 1px solid var(--border);
+  font-size: 20px;
+}
+.tire-card.new .tc-badge   { background: rgba(232,255,71,0.08); border-color: rgba(232,255,71,0.3); }
+.tire-card.used .tc-badge  { background: rgba(46,204,113,0.08); border-color: rgba(46,204,113,0.3); }
+.tire-card .tc-main { min-width: 0; }
+.tire-card .tc-title {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tire-card .tc-sub {
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  color: var(--text2); margin-top: 2px; letter-spacing: 0.04em;
+}
+.tire-card .tc-meta {
+  font-size: 10px; color: var(--text3); margin-top: 2px;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.05em; text-transform: uppercase;
+}
+.tire-card .tc-right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+}
+.tire-card .tc-price {
+  font-size: 15px; font-weight: 700; font-family: 'DM Mono', monospace;
+  color: var(--accent);
+}
+.tire-card .tc-qty {
+  font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text2);
+}
+.tire-card .tc-remove {
+  background: transparent; border: none; color: var(--text3);
+  font-size: 16px; cursor: pointer; padding: 4px 6px;
+  align-self: flex-start;
+}
+.tire-card .tc-remove:hover { color: var(--danger); }
+
+.tire-type-toggle {
+  display: inline-flex; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px; gap: 2px;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.tire-type-toggle button {
+  background: transparent; border: none; color: var(--text2);
+  padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: inherit; letter-spacing: inherit;
+  transition: all 0.15s;
+}
+.tire-type-toggle button.on { background: var(--accent); color: #0a0a0a; font-weight: 700; }
+
+/* ═══════════════════════════════════════════════════════
+   SCANNER QR — overlay fotocamera
+═══════════════════════════════════════════════════════ */
+.scanner-overlay {
+  display: none; position: fixed; inset: 0; z-index: 400;
+  background: #000; flex-direction: column;
+}
+.scanner-overlay.open { display: flex; }
+.scanner-video {
+  flex: 1; width: 100%; height: 100%;
+  object-fit: cover; background: #000;
+}
+.scanner-frame {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(70vw, 280px); aspect-ratio: 1;
+  border: 2px solid var(--accent);
+  border-radius: 20px;
+  box-shadow: 0 0 0 4000px rgba(0,0,0,0.55);
+  pointer-events: none;
+}
+.scanner-frame::before, .scanner-frame::after,
+.scanner-frame > span:nth-child(1), .scanner-frame > span:nth-child(2) {
+  content: ''; position: absolute;
+  width: 28px; height: 28px;
+  border: 3px solid var(--accent);
+}
+.scanner-frame::before { top: -2px; left: -2px; border-right: none; border-bottom: none; border-top-left-radius: 20px; }
+.scanner-frame::after  { top: -2px; right: -2px; border-left: none;  border-bottom: none; border-top-right-radius: 20px; }
+.scanner-frame > span:nth-child(1) { bottom: -2px; left: -2px; border-right: none; border-top: none; border-bottom-left-radius: 20px; }
+.scanner-frame > span:nth-child(2) { bottom: -2px; right: -2px; border-left: none;  border-top: none; border-bottom-right-radius: 20px; }
+.scanner-topbar {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+  z-index: 2;
+}
+.scanner-title {
+  color: #fff; font-weight: 700; font-size: 15px;
+}
+.scanner-sub {
+  color: var(--accent); font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.scanner-close, .scanner-flash {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); border: none;
+  color: #fff; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(10px);
+}
+.scanner-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 20px; text-align: center; color: #fff;
+  background: linear-gradient(to top, rgba(0,0,0,0.75), transparent);
+  z-index: 2;
+}
+.scanner-hint {
+  font-size: 13px; color: #ddd; margin-bottom: 12px; line-height: 1.4;
+}
+.scanner-manual {
+  background: rgba(255,255,255,0.12); color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 10px 20px; border-radius: 999px;
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600;
+  cursor: pointer; backdrop-filter: blur(10px);
+}
+.scanner-success-flash {
+  position: absolute; inset: 0; background: rgba(232,255,71,0.25);
+  animation: flashOut 0.35s ease-out;
+  pointer-events: none; z-index: 3;
+}
+@keyframes flashOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* ═══════════════════════════════════════════════════════
+   MODAL BOTTOM-SHEET (ricerca, dettaglio, manuale)
+═══════════════════════════════════════════════════════ */
+.sheet-overlay {
+  display: none; position: fixed; inset: 0; z-index: 350;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+  flex-direction: column; justify-content: flex-end;
+}
+.sheet-overlay.open { display: flex; }
+.sheet {
+  background: var(--surface); border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border); padding: 20px 20px 32px;
+  max-height: 92vh; overflow-y: auto;
+  animation: slideUp 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sheet-handle {
+  width: 40px; height: 4px; background: var(--border2);
+  border-radius: 2px; margin: 0 auto 16px;
+}
+.sheet-title {
+  font-size: 18px; font-weight: 800; margin-bottom: 4px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.sheet-sub {
+  font-size: 11px; font-family: 'DM Mono', monospace;
+  color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.sheet-close {
+  background: var(--surface2); border: none; color: var(--text2);
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+  font-size: 18px; display: flex; align-items: center; justify-content: center;
+}
+
+/* ── RICERCA MISURA ── */
+.size-parts {
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 8px; margin-bottom: 16px;
+}
+.size-parts .field { margin-bottom: 0; }
+.size-parts .field label { font-size: 10px; }
+.size-parts .field input {
+  padding: 12px 10px; font-size: 15px; text-align: center;
+  font-family: 'DM Mono', monospace;
+}
+.size-quick {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--text3); text-align: center; margin-bottom: 14px;
+  letter-spacing: 0.05em;
+}
+.size-quick b { color: var(--accent); font-weight: 500; }
+
+/* ── RISULTATI FORNITORI ── */
+.supplier-row {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  margin-bottom: 8px;
+  display: grid; grid-template-columns: 1fr auto; gap: 8px;
+  align-items: center;
+}
+.supplier-row.best { border-color: var(--accent); background: rgba(232,255,71,0.04); }
+.supplier-row.best::after {
+  content: 'BEST'; position: absolute;
+}
+.supplier-row .sr-main { min-width: 0; }
+.supplier-row .sr-brand {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.supplier-row .sr-sub {
+  font-size: 11px; color: var(--text2); margin-top: 2px;
+  font-family: 'DM Mono', monospace;
+}
+.supplier-row .sr-supplier {
+  font-size: 10px; color: var(--text3); margin-top: 3px;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.supplier-row .sr-price {
+  font-size: 16px; font-weight: 700; font-family: 'DM Mono', monospace;
+  color: var(--accent); text-align: right;
+}
+.supplier-row .sr-stock {
+  font-size: 10px; color: var(--green); font-family: 'DM Mono', monospace;
+  margin-top: 2px; text-align: right;
+}
+.supplier-row .sr-stock.low { color: #f39c12; }
+.supplier-row .sr-stock.out { color: var(--text3); }
+.supplier-row .sr-action {
+  background: var(--accent); color: #0a0a0a; border: none;
+  padding: 8px 12px; border-radius: 8px; font-family: 'Syne', sans-serif;
+  font-weight: 700; font-size: 12px; cursor: pointer;
+  margin-top: 6px; width: 100%;
+}
+
+.deeplink-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin-top: 8px;
+}
+.deeplink-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 8px; border-radius: var(--radius-sm);
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  cursor: pointer; text-align: center; text-decoration: none;
+  letter-spacing: 0.05em; display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: border-color 0.15s;
+}
+.deeplink-btn:hover { border-color: var(--accent); color: var(--accent); }
+.deeplink-btn::before { content: '↗'; opacity: 0.6; }
+
+/* ── CATEGORIE / TAB (tutto/stock/oos) ── */
+.tab-row {
+  display: flex; gap: 6px; margin-bottom: 14px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.tab-row::-webkit-scrollbar { display: none; }
+.tab-pill {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text2); padding: 7px 14px; border-radius: 999px;
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  letter-spacing: 0.06em; transition: all 0.15s;
+}
+.tab-pill.active { background: var(--accent); color: #0a0a0a; border-color: var(--accent); font-weight: 700; }
+
+/* ── EMPTY ── */
+.empty-tires {
+  text-align: center; padding: 20px 16px;
+  background: var(--surface); border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  font-family: 'DM Mono', monospace; font-size: 12px;
+  color: var(--text3); line-height: 1.7; margin-bottom: 18px;
+}
+.empty-tires .et-emoji { font-size: 26px; margin-bottom: 6px; display: block; opacity: 0.6; }
+
+/* ── SUPPLIERS CONFIG (settings) ── */
+.supplier-cfg {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 8px;
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px;
+}
+.supplier-cfg .scfg-name { font-size: 13px; font-weight: 700; }
+.supplier-cfg .scfg-url {
+  font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 240px; margin-top: 2px;
+}
+.supplier-cfg .scfg-del {
+  background: transparent; border: 1px solid var(--border); color: var(--text3);
+  padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+}
+.supplier-cfg .scfg-del:hover { color: var(--danger); border-color: var(--danger); }
+.supplier-form {
+  display: grid; grid-template-columns: 1fr 2fr auto; gap: 6px;
+  margin-bottom: 12px;
+}
+.supplier-form input {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: 'DM Mono', monospace; font-size: 12px;
+  padding: 10px; border-radius: var(--radius-sm); outline: none;
+}
+.supplier-form button {
+  background: var(--accent); color: #0a0a0a; border: none;
+  padding: 0 14px; border-radius: var(--radius-sm);
+  font-weight: 700; cursor: pointer; font-family: 'Syne', sans-serif;
+}
+
+.hint-box {
+  background: rgba(232,255,71,0.06); border: 1px solid rgba(232,255,71,0.2);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+  font-size: 11px; color: var(--text2); line-height: 1.5;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.02em;
+  margin-bottom: 14px;
+}
+.hint-box b { color: var(--accent); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     TOPBAR
+══════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <div>
+    <div class="logo">Quote<span>Flash</span></div>
+    <div class="logo-sub">by PezzaliApp</div>
+  </div>
+  <div class="topbar-right">
+    <div class="step-indicator" id="stepIndicator">
+      <div class="step-dot active" id="dot0"></div>
+      <div class="step-dot" id="dot1"></div>
+      <div class="step-dot" id="dot2"></div>
+      <div class="step-dot" id="dot3"></div>
+    </div>
+    <div class="icon-btn" onclick="openSettings()" title="Impostazioni">⚙</div>
+  </div>
+</div>
+
+<div class="app">
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 0 — CLIENTE
+══════════════════════════════════════════════════════ -->
+<div class="screen active" id="screen0">
+  <div class="content">
+    <div class="screen-title">Step 1 / 4</div>
+    <div class="screen-heading">Dati<br>cliente</div>
+
+    <div class="field">
+      <label>Nome cliente *</label>
+      <input type="text" id="clienteNome" placeholder="Es. Mario Rossi" autocomplete="name">
+    </div>
+    <div class="field">
+      <label>Telefono</label>
+      <input type="tel" id="clienteTel" placeholder="+39 333 000 0000" autocomplete="tel">
+    </div>
+    <div class="field">
+      <label>Targa veicolo</label>
+      <input type="text" id="clienteTarga" placeholder="ES000AB" style="text-transform:uppercase" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Tipo veicolo</label>
+      <select id="clienteTipo">
+        <option value="Auto">Auto</option>
+        <option value="SUV / Fuoristrada">SUV / Fuoristrada</option>
+        <option value="Furgone">Furgone</option>
+        <option value="Moto">Moto</option>
+        <option value="Camion">Camion</option>
+      </select>
+    </div>
+  </div>
+  <div style="padding: 0 20px 20px;">
+    <button class="btn btn-primary" onclick="goToStep(1)">Continua →</button>
+  </div>
+  <div class="bottom-safe"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 1 — PNEUMATICI (NUOVO)
+══════════════════════════════════════════════════════ -->
+<div class="screen" id="screen_tires">
+  <div class="content">
+    <div class="screen-title">Step 2 / 4</div>
+    <div class="screen-heading">Pneumatici<br>al preventivo</div>
+
+    <div class="action-row">
+      <div class="action-tile" onclick="openScanner()">
+        <div class="at-icon">📷</div>
+        <div class="at-label">Scansiona QR</div>
+        <div class="at-sub">fotocamera</div>
+      </div>
+      <div class="action-tile" onclick="openSearchSheet()">
+        <div class="at-icon">🔍</div>
+        <div class="at-label">Cerca misura</div>
+        <div class="at-sub">es. 255/55 R17</div>
+      </div>
+    </div>
+
+    <!-- lista pneumatici aggiunti -->
+    <div id="tiresList">
+      <!-- generato da JS -->
+    </div>
+
+    <button class="btn btn-ghost" onclick="openManualAdd()" style="font-size:13px; padding:12px;">
+      + Aggiungi manualmente
+    </button>
+  </div>
+  <div style="padding: 0 20px 20px;">
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goToStep(0)">← Indietro</button>
+      <button class="btn btn-primary" onclick="goToStep(2)">Continua →</button>
+    </div>
+  </div>
+  <div class="bottom-safe"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 2 — SERVIZI
+══════════════════════════════════════════════════════ -->
+<div class="screen" id="screen1">
+  <div class="content">
+    <div class="screen-title">Step 3 / 4</div>
+    <div class="screen-heading">Seleziona<br>servizi</div>
+
+    <div class="servizi-grid" id="serviziGrid">
+      <!-- Generato da JS -->
+    </div>
+
+    <!-- Quantità gomme (mostrato solo se selezionato servizio con qty) -->
+    <div id="qtySection" style="display:none;">
+      <div class="sep"></div>
+      <div class="field">
+        <label>Numero gomme / cerchi</label>
+        <div class="qty-row">
+          <button class="qty-btn" onclick="changeQty(-1)">−</button>
+          <div class="qty-val" id="qtyVal">4</div>
+          <button class="qty-btn" onclick="changeQty(1)">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field note-field" style="margin-top:8px;">
+      <label>Note aggiuntive</label>
+      <textarea id="noteExtra" placeholder="Es. gomme invernali, cerchi in lega, misura speciale…"></textarea>
+    </div>
+  </div>
+  <div style="padding: 0 20px 20px;">
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goToStep(1)">← Indietro</button>
+      <button class="btn btn-primary" onclick="goToStep(3)">Calcola →</button>
+    </div>
+  </div>
+  <div class="bottom-safe"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCREEN 3 — RIEPILOGO + OUTPUT
+══════════════════════════════════════════════════════ -->
+<div class="screen" id="screen2">
+  <div class="content">
+    <div class="screen-title">Step 4 / 4</div>
+    <div class="screen-heading">Preventivo</div>
+
+    <div id="previewArea">
+      <!-- Generato da JS -->
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- OUTPUT BUTTONS -->
+    <button class="btn btn-primary" onclick="generaPDF()">
+      <span id="pdfBtnText">📄 Scarica PDF</span>
+    </button>
+    <button class="btn btn-secondary" onclick="copiaTXT()">
+      📋 Copia testo (TXT)
+    </button>
+    <button class="btn btn-whatsapp" onclick="apriWhatsApp()">
+      💬 Invia su WhatsApp
+    </button>
+    <button class="btn btn-ghost" onclick="nuovoPreventivo()">
+      + Nuovo preventivo
+    </button>
+  </div>
+  <div style="padding: 0 20px 20px;">
+    <button class="btn btn-ghost" onclick="goToStep(2)">← Modifica</button>
+  </div>
+  <div class="bottom-safe"></div>
+</div>
+
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════════════
+     SCANNER QR / BARCODE OVERLAY
+══════════════════════════════════════════════════════ -->
+<div class="scanner-overlay" id="scannerOverlay">
+  <div class="scanner-topbar">
+    <div>
+      <div class="scanner-title">Scanner Pneumatici</div>
+      <div class="scanner-sub" id="scannerStatus">Inquadra QR · EAN · DOT</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="scanner-flash" id="flashBtn" onclick="toggleFlash()" title="Torcia" style="display:none;">🔦</button>
+      <button class="scanner-close" onclick="closeScanner()">✕</button>
+    </div>
+  </div>
+  <video class="scanner-video" id="scannerVideo" playsinline muted autoplay></video>
+  <canvas id="scannerCanvas" style="display:none;"></canvas>
+  <div class="scanner-frame"><span></span><span></span></div>
+  <div class="scanner-bottom">
+    <div class="scanner-hint">Inquadra il QR sul cartellino pneumatico<br>o il codice EAN/DOT sulla gomma</div>
+    <button class="scanner-manual" onclick="scannerToManual()">Inserimento manuale</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SHEET RICERCA PER MISURA
+══════════════════════════════════════════════════════ -->
+<div class="sheet-overlay" id="searchOverlay" onclick="closeSheetIfBg(event, 'searchOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">
+      Cerca pneumatico
+      <button class="sheet-close" onclick="closeSearchSheet()">✕</button>
+    </div>
+    <div class="sheet-sub">Inserisci la misura ETRTO</div>
+
+    <div class="size-parts">
+      <div class="field">
+        <label>Largh.</label>
+        <input type="tel" id="sizeW" maxlength="3" placeholder="255" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Spalla</label>
+        <input type="tel" id="sizeH" maxlength="3" placeholder="55" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Cerchio</label>
+        <input type="tel" id="sizeR" maxlength="2" placeholder="17" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Stag.</label>
+        <select id="sizeSeason" style="padding:12px 4px; font-size:12px;">
+          <option value="">—</option>
+          <option value="estive">Estive</option>
+          <option value="invernali">Invernali</option>
+          <option value="4stag">4 stagioni</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="size-quick" id="sizeQuick">Misura: <b>—</b></div>
+
+    <button class="btn btn-primary" onclick="runSearch()">🔍 Cerca su tutti i fornitori</button>
+
+    <!-- tab -->
+    <div class="tab-row" id="resultsTabs" style="display:none;">
+      <div class="tab-pill active" data-filter="all" onclick="filterResults('all')">Tutti</div>
+      <div class="tab-pill" data-filter="stock" onclick="filterResults('stock')">Disponibili</div>
+      <div class="tab-pill" data-filter="best" onclick="filterResults('best')">Miglior prezzo</div>
+    </div>
+
+    <div id="searchResults"></div>
+
+    <div id="deeplinkSection" style="margin-top:16px; display:none;">
+      <div class="sheet-sub" style="margin-bottom:8px;">Apri ricerca sul B2B del fornitore</div>
+      <div class="deeplink-row" id="deeplinkList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SHEET AGGIUNTA MANUALE / DETTAGLIO PNEUMATICO
+══════════════════════════════════════════════════════ -->
+<div class="sheet-overlay" id="manualOverlay" onclick="closeSheetIfBg(event, 'manualOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">
+      <span id="manualTitle">Aggiungi pneumatico</span>
+      <button class="sheet-close" onclick="closeManualAdd()">✕</button>
+    </div>
+    <div class="sheet-sub" id="manualSubtitle">Nuovo · al preventivo</div>
+
+    <!-- Hint EPREL: visibile solo quando si arriva da scan QR EPREL -->
+    <div id="manualEprelHint" class="hint-box" style="display:none;"></div>
+
+    <div style="text-align:center; margin-bottom:16px;">
+      <div class="tire-type-toggle">
+        <button id="typeNewBtn" class="on" onclick="setManualType('new')">Nuovo</button>
+        <button id="typeUsedBtn" onclick="setManualType('used')">Usato</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Marca e modello</label>
+      <input type="text" id="mBrand" placeholder="Es. Michelin Primacy 4">
+    </div>
+
+    <div class="size-parts">
+      <div class="field">
+        <label>Largh.</label>
+        <input type="tel" id="mW" maxlength="3" placeholder="255" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Spalla</label>
+        <input type="tel" id="mH" maxlength="3" placeholder="55" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>Cerchio</label>
+        <input type="tel" id="mR" maxlength="2" placeholder="17" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>LI/SI</label>
+        <input type="text" id="mLiSi" maxlength="5" placeholder="94V">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Stagione</label>
+      <select id="mSeason">
+        <option value="estive">Estive</option>
+        <option value="invernali">Invernali</option>
+        <option value="4stag">4 stagioni</option>
+      </select>
+    </div>
+
+    <!-- Campi solo USATO -->
+    <div id="usedFields" style="display:none;">
+      <div class="size-parts" style="grid-template-columns:1fr 1fr;">
+        <div class="field">
+          <label>Battistrada (mm)</label>
+          <input type="text" id="mTread" placeholder="6.5" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label>DOT</label>
+          <input type="text" id="mDot" placeholder="3523" maxlength="4" inputmode="numeric">
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Posizione sul veicolo</label>
+      <select id="mPosition" onchange="onPositionChange()">
+        <option value="">Set (quantità libera)</option>
+        <option value="ANT SX">Anteriore SX</option>
+        <option value="ANT DX">Anteriore DX</option>
+        <option value="POST SX">Posteriore SX</option>
+        <option value="POST DX">Posteriore DX</option>
+        <option value="SCORTA">Ruota di scorta</option>
+      </select>
+    </div>
+
+    <div class="size-parts" style="grid-template-columns:1fr 1fr;">
+      <div class="field">
+        <label>Quantità (1–4)</label>
+        <div class="qty-row">
+          <button class="qty-btn" onclick="changeMQty(-1)">−</button>
+          <div class="qty-val" id="mQtyVal">4</div>
+          <button class="qty-btn" onclick="changeMQty(1)">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Prezzo / pz (€)</label>
+        <input type="tel" id="mPrice" placeholder="180" inputmode="decimal">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Note pneumatico (opzionale)</label>
+      <input type="text" id="mTireNote" placeholder="Es. runflat, XL, deposito #17, cliente Rossi">
+    </div>
+
+    <!-- Classi energetiche EPREL (opzionali, compilazione manuale) -->
+    <div class="size-parts" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="field">
+        <label>⛽ Carb.</label>
+        <select id="mClassCarb">
+          <option value="">—</option>
+          <option value="A">A</option><option value="B">B</option>
+          <option value="C">C</option><option value="D">D</option>
+          <option value="E">E</option><option value="F">F</option>
+          <option value="G">G</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>💧 Bagnato</label>
+        <select id="mClassAder">
+          <option value="">—</option>
+          <option value="A">A</option><option value="B">B</option>
+          <option value="C">C</option><option value="D">D</option>
+          <option value="E">E</option><option value="F">F</option>
+          <option value="G">G</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>🔊 Rumore</label>
+        <select id="mClassRumore">
+          <option value="">—</option>
+          <option value="A">A</option><option value="B">B</option>
+          <option value="C">C</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveManualTire()">Aggiungi al preventivo</button>
+    <button class="btn btn-ghost" onclick="closeManualAdd()">Annulla</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     SETTINGS SHEET
+══════════════════════════════════════════════════════ -->
+<div class="settings-overlay" id="settingsOverlay" onclick="closeSettingsIfBg(event)">
+  <div class="settings-sheet">
+    <div class="settings-title">
+      Impostazioni
+      <button class="settings-close" onclick="closeSettings()">✕</button>
+    </div>
+
+    <div class="field">
+      <label>Nome officina</label>
+      <input type="text" id="sOfficina" placeholder="Es. Gommista Bianchi">
+    </div>
+    <div class="field">
+      <label>Telefono officina</label>
+      <input type="tel" id="sTelOfficina" placeholder="+39 0743 000000">
+    </div>
+    <div class="field">
+      <label>Indirizzo</label>
+      <input type="text" id="sIndirizzo" placeholder="Via Roma 1, Spoleto">
+    </div>
+    <div class="field">
+      <label>P.IVA</label>
+      <input type="text" id="sPiva" placeholder="IT 00000000000">
+    </div>
+    <div class="field">
+      <label>Make.com Webhook URL</label>
+      <input type="url" id="sWebhook" placeholder="https://hook.eu2.make.com/xxxxxxxx">
+    </div>
+    <div class="field">
+      <label>Numero WhatsApp default (senza +)</label>
+      <input type="text" id="sWhatsapp" placeholder="39333000000">
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="field">
+      <label>EPREL Proxy URL (per compilazione automatica)</label>
+      <input type="text" id="sEprelProxy" placeholder="https://eprel-proxy.tuonome.workers.dev/?id={id}">
+      <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--text3); margin-top:6px; line-height:1.5;">
+        URL del tuo Cloudflare Worker che riceve <b style="color:var(--accent);">?id=&lt;eprelId&gt;</b> e risponde JSON con i dati del pneumatico. <b style="color:var(--accent);">{id}</b> nell'URL viene sostituito automaticamente. <br><br>
+        🔐 <b>L'API key EPREL va messa sul Worker</b> come variabile d'ambiente <b style="color:var(--accent);">EPREL_API_KEY</b> (Cloudflare → Worker → Settings → Variables and Secrets → Add Secret). Non va mai inserita qui.
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="sheet-sub" style="margin-bottom:6px;">Fornitori B2B pneumatici</div>
+
+    <div class="hint-box">
+      <b>Come funziona.</b> Aggiungi qui i link di ricerca dei tuoi fornitori B2B. Usa
+      <b>{w}</b> <b>{h}</b> <b>{r}</b> come segnaposto per larghezza/spalla/cerchio.
+      Esempio: <i>https://b2b.tuofornitore.it/ricerca?w={w}&h={h}&r={r}</i>
+    </div>
+
+    <div id="suppliersList">
+      <!-- generato da JS -->
+    </div>
+
+    <div class="supplier-form">
+      <input type="text" id="newSupName" placeholder="Nome fornitore">
+      <input type="text" id="newSupUrl" placeholder="URL con {w}/{h}/{r}">
+      <button onclick="addSupplier()">+</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <button class="btn btn-primary" onclick="salvaImpostazioni()">Salva impostazioni</button>
+    <button class="btn btn-ghost" onclick="closeSettings()">Annulla</button>
+  </div>
+</div>
+
+<!-- SNACKBAR -->
+<div class="snackbar" id="snackbar"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONFIGURAZIONE LISTINO — MODIFICA QUI I PREZZI
+// ═══════════════════════════════════════════════════════
+const LISTINO = [
+  { id: 'montaggio',    nome: 'Montaggio gomme',      icona: '🔧', prezzo: 8,  costoStima: 2,  perGomma: true,  desc: '× gomma' },
+  { id: 'equilibratura',nome: 'Equilibratura',        icona: '⚖️', prezzo: 7,  costoStima: 2,  perGomma: true,  desc: '× cerchio' },
+  { id: 'convergenza',  nome: 'Convergenza',          icona: '🎯', prezzo: 45, costoStima: 15, perGomma: false, desc: 'servizio' },
+  { id: 'assetto',      nome: 'Assetto 3D',           icona: '📐', prezzo: 80, costoStima: 25, perGomma: false, desc: 'servizio' },
+  { id: 'gonfiaggio',   nome: 'Gonfiaggio azoto',     icona: '💨', prezzo: 5,  costoStima: 1,  perGomma: true,  desc: '× gomma' },
+  { id: 'smontaggio',   nome: 'Smontaggio gomme',     icona: '🔩', prezzo: 6,  costoStima: 1.5,perGomma: true,  desc: '× gomma' },
+  { id: 'stoccaggio',   nome: 'Stoccaggio stagionale',icona: '📦', prezzo: 30, costoStima: 5,  perGomma: false, desc: 'stagione' },
+  { id: 'valvole',      nome: 'Sostituzione valvole', icona: '🔵', prezzo: 3,  costoStima: 0.5,perGomma: true,  desc: '× valvola' },
+];
+
+// ═══════════════════════════════════════════════════════
+//  FORNITORI B2B DEFAULT (deep-link templates)
+//  ─────────────────────────────────────────────────
+//  {w}=larghezza {h}=spalla {r}=diametro cerchio
+//  Il gommista puo' aggiungerne altri dalle Impostazioni.
+//  NOTA: ogni B2B ha propria struttura URL, questi sono
+//  placeholder: aggiornali con l'URL effettivo del TUO fornitore
+//  dopo aver fatto login una volta sul suo portale.
+// ═══════════════════════════════════════════════════════
+const DEFAULT_SUPPLIERS = [
+  { name: 'EPREL (UE)',       urlTpl: 'https://eprel.ec.europa.eu/screen/product/tyres?size={w}%2F{h}R{r}' },
+  { name: 'Ciavarella B2B',   urlTpl: 'https://www.ciavarellapneumatici.com/?s={w}%2F{h}+R{r}' },
+  { name: 'Intergomma B2B',   urlTpl: 'https://www.intergomma.it/?s={w}%2F{h}+R{r}' },
+  { name: 'Google Shop',      urlTpl: 'https://www.google.com/search?tbm=shop&q=pneumatici+{w}%2F{h}+R{r}' },
+];
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let state = {
+  step: 0,
+  cliente: { nome: '', tel: '', targa: '', tipo: 'Auto' },
+  tires: [],               // pneumatici nuovi/usati al preventivo
+  serviziSelezionati: {},  // id → true
+  qty: 4,
+  note: '',
+  settings: {},            // persistiti
+  // stato interno scanner / manuale
+  _scanStream: null,
+  _scanDetector: null,
+  _scanActive: false,
+  _manualCtx: null,        // { mode:'new'|'used', qty, prefill }
+  _searchResults: [],
+  _searchSize: null,
+  _searchFilter: 'all',
+};
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  renderServiziGrid();
+  renderTiresList();
+  renderSuppliersList();
+  // listener live su campi misura (sheet ricerca)
+  ['sizeW','sizeH','sizeR'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateSizeQuick);
+  });
+});
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('qf_settings') || '{}');
+    // default fornitori al primo avvio
+    if (!s.suppliers) s.suppliers = DEFAULT_SUPPLIERS.slice();
+    state.settings = s;
+    if (s.officina)    document.getElementById('sOfficina').value  = s.officina;
+    if (s.tel)         document.getElementById('sTelOfficina').value = s.tel;
+    if (s.indirizzo)   document.getElementById('sIndirizzo').value = s.indirizzo;
+    if (s.piva)        document.getElementById('sPiva').value      = s.piva;
+    if (s.webhook)     document.getElementById('sWebhook').value   = s.webhook;
+    if (s.whatsapp)    document.getElementById('sWhatsapp').value  = s.whatsapp;
+    if (s.eprelProxy)  document.getElementById('sEprelProxy').value = s.eprelProxy;
+  } catch(e) {}
+}
+
+function salvaImpostazioni() {
+  state.settings = {
+    ...state.settings, // preserva suppliers
+    officina:    document.getElementById('sOfficina').value.trim(),
+    tel:         document.getElementById('sTelOfficina').value.trim(),
+    indirizzo:   document.getElementById('sIndirizzo').value.trim(),
+    piva:        document.getElementById('sPiva').value.trim(),
+    webhook:     document.getElementById('sWebhook').value.trim(),
+    whatsapp:    document.getElementById('sWhatsapp').value.trim(),
+    eprelProxy:  document.getElementById('sEprelProxy').value.trim(),
+  };
+  localStorage.setItem('qf_settings', JSON.stringify(state.settings));
+  closeSettings();
+  snack('✓ Impostazioni salvate');
+}
+
+// ═══════════════════════════════════════════════════════
+//  NAVIGAZIONE STEP (4 step: Cliente → Pneumatici → Servizi → Output)
+// ═══════════════════════════════════════════════════════
+function goToStep(n) {
+  // Validazione in uscita dallo step corrente
+  if (state.step === 0 && n > 0) {
+    const nome = document.getElementById('clienteNome').value.trim();
+    if (!nome) { snack('⚠ Inserisci il nome del cliente'); return; }
+    state.cliente = {
+      nome: nome,
+      tel:   document.getElementById('clienteTel').value.trim(),
+      targa: document.getElementById('clienteTarga').value.trim().toUpperCase(),
+      tipo:  document.getElementById('clienteTipo').value,
+    };
+  }
+  if (n === 3) {
+    // entrando in output: salva note, calcola, invia webhook
+    state.note = document.getElementById('noteExtra').value.trim();
+    const hasAny = state.tires.length > 0 ||
+                   Object.keys(state.serviziSelezionati).some(k => state.serviziSelezionati[k]);
+    if (!hasAny) {
+      snack('⚠ Aggiungi almeno un pneumatico o un servizio');
+      return;
+    }
+    buildRiepilogo();
+    inviaWebhook();
+  }
+
+  state.step = n;
+  document.querySelectorAll('.screen').forEach((s, i) => {
+    s.classList.toggle('active', i === n);
+  });
+
+  // Aggiorna dots
+  for (let i = 0; i < 4; i++) {
+    const d = document.getElementById('dot' + i);
+    if (!d) continue;
+    d.classList.remove('active', 'done');
+    if (i === n) d.classList.add('active');
+    else if (i < n) d.classList.add('done');
+  }
+
+  window.scrollTo(0, 0);
+}
+
+// ═══════════════════════════════════════════════════════
+//  ═══════════════ MODULO PNEUMATICI ═══════════════════
+// ═══════════════════════════════════════════════════════
+
+// ── PARSER MISURA ETRTO ─────────────────────────────────
+// Accetta: "245/45 R18 94V", "195/65 R16C 104/102T", "245/45R18", ecc.
+// La "C" indica pneumatici commerciali/furgone, "CP" camper.
+// Ritorna { w, h, r, cls, liSi } oppure null
+function parseTireSize(str) {
+  if (!str) return null;
+  const s = String(str).toUpperCase().replace(/\s+/g, ' ').trim();
+  // Pattern: 3 cifre / 2-3 cifre (R|ZR) 2 cifre [C|CP]? [LI+SI]?
+  const m = s.match(/(\d{3})\s*[\/\- ]\s*(\d{2,3})\s*(?:Z?R|R)\s*(\d{2})\s*(CP|C)?\s*(?:(\d{2,3}(?:\/\d{2,3})?[A-Z]{1,2}))?/);
+  if (!m) return null;
+  return {
+    w: parseInt(m[1], 10),
+    h: parseInt(m[2], 10),
+    r: parseInt(m[3], 10),
+    cls: m[4] || '',      // 'C' / 'CP' / ''
+    liSi: m[5] || ''
+  };
+}
+function formatTireSize(sz) {
+  if (!sz || sz.w == null) return '';
+  const cls = sz.cls ? sz.cls : '';
+  return `${sz.w}/${sz.h} R${sz.r}${cls}${sz.liSi ? ' ' + sz.liSi : ''}`;
+}
+
+// ── PARSER QR / BARCODE MULTI-FORMATO ──────────────────
+// Priorità di riconoscimento:
+// 1. URL EPREL (UE 2020/740) → estrae ID EPREL
+// 2. EAN-13 con checksum valido → codice prodotto pneumatico
+// 3. DOT (4 cifre WWYY) → pneumatico usato
+// 4. JSON QuoteFlash-native {"qf":"tire", ...}
+// 5. Testo con pattern misura ETRTO → pre-compila
+function parseQRPayload(raw) {
+  if (!raw) return { type: 'unknown', raw };
+  const t = String(raw).trim();
+
+  // 1. EPREL URL — il QR sul pneumatico UE
+  //    https://eprel.ec.europa.eu/qr/XXXXXX
+  //    https://eprel.ec.europa.eu/screen/product/tyres/XXXXXX
+  const eprelMatch = t.match(/eprel\.ec\.europa\.eu\/(?:qr|screen\/product\/tyres)\/(\d{4,8})/i);
+  if (eprelMatch) {
+    return {
+      type: 'eprel',
+      eprelId: eprelMatch[1],
+      link: `https://eprel.ec.europa.eu/screen/product/tyres/${eprelMatch[1]}`,
+      raw: t
+    };
+  }
+
+  // 2. JSON QuoteFlash custom
+  if (t.startsWith('{')) {
+    try {
+      const j = JSON.parse(t);
+      if (j.qf === 'tire' || j.type === 'tire') {
+        return { type: 'qf-json', data: j, raw: t };
+      }
+    } catch(_) { /* non è json */ }
+  }
+
+  // 3. URL generico (fornitore B2B, shop, ecc.)
+  if (/^https?:\/\//i.test(t)) {
+    // tenta estrarre misura dall'URL
+    const sz = parseTireSize(decodeURIComponent(t));
+    return { type: 'url', link: t, size: sz, raw: t };
+  }
+
+  // 4. EAN-13
+  if (/^\d{13}$/.test(t) && isValidEAN13(t)) {
+    return { type: 'ean', ean: t, raw: t };
+  }
+  // EAN-8 o altri solo numerici 8-14 cifre
+  if (/^\d{8,14}$/.test(t)) {
+    return { type: 'ean', ean: t, raw: t };
+  }
+
+  // 5. DOT pneumatico (4 cifre: settimana + anno)
+  const dotMatch = t.match(/^(?:DOT\s*)?(\d{2})(\d{2})$/i);
+  if (dotMatch) {
+    const w = parseInt(dotMatch[1], 10);
+    const y = parseInt(dotMatch[2], 10);
+    if (w >= 1 && w <= 53) {
+      const fullYear = y < 50 ? 2000 + y : 1900 + y;
+      return { type: 'dot', dot: dotMatch[1] + dotMatch[2], week: w, year: fullYear, raw: t };
+    }
+  }
+
+  // 6. Testo libero con pattern misura
+  const sz = parseTireSize(t);
+  if (sz) return { type: 'size-text', size: sz, raw: t };
+
+  return { type: 'unknown', raw: t };
+}
+
+function isValidEAN13(s) {
+  if (!/^\d{13}$/.test(s)) return false;
+  const d = s.split('').map(Number);
+  const sum = d.slice(0, 12).reduce((a, b, i) => a + b * (i % 2 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === d[12];
+}
+
+// ── FETCH EPREL ─────────────────────────────────────────
+// Chiama il Cloudflare Worker configurato (se presente) e
+// popola il form automaticamente se il worker risponde con
+// dati veri. Se il worker risponde "fallback-link-only" o
+// se non è configurato, l'app apre EPREL in scheda e fa
+// compilare a mano.
+//
+// 🔐 NOTA SICUREZZA:
+// L'API key ufficiale EPREL NON va messa nella PWA.
+// Va configurata direttamente sul Worker come variabile
+// d'ambiente criptata: Cloudflare → Worker → Settings →
+// Variables and Secrets → Add Secret "EPREL_API_KEY".
+// ───────────────────────────────────────────────────────
+async function fetchEprelData(eprelId) {
+  const proxy = (state.settings.eprelProxy || '').trim();
+  if (!proxy) return null;
+
+  try {
+    const url = proxy.includes('{id}')
+      ? proxy.replace('{id}', eprelId)
+      : proxy + (proxy.includes('?') ? '&' : '?') + 'id=' + eprelId;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (res.ok) {
+      const j = await res.json();
+      // Accetta solo risposte con dati veri (il worker potrebbe
+      // rispondere con source=fallback-link-only se non riesce)
+      if (j && (j.brand || j.size) && j.source !== 'fallback-link-only') {
+        return {
+          brand: j.brand || '',
+          size: j.size || '',
+          liSi: j.liSi || '',
+          classCarb: j.classCarb || '',
+          classAder: j.classAder || '',
+          classRumore: j.classRumore || '',
+          season: j.season || '',
+          link: j.link || `https://eprel.ec.europa.eu/screen/product/tyres/${eprelId}`,
+          source: j.source || 'proxy'
+        };
+      }
+    }
+  } catch(e) {
+    console.warn('EPREL proxy fallito:', e.message);
+  }
+  return null;
+}
+
+function mapSeason(raw) {
+  if (!raw) return 'estive';
+  const s = String(raw).toLowerCase();
+  if (/snow|invern|winter/i.test(s)) return 'invernali';
+  if (/all[- ]?season|tutte.*stagioni|4.?stag/i.test(s)) return '4stag';
+  return 'estive';
+}
+
+// ── RENDER LISTA PNEUMATICI NEL PREVENTIVO ─────────────
+function renderTiresList() {
+  const list = document.getElementById('tiresList');
+  if (!list) return;
+  if (state.tires.length === 0) {
+    list.innerHTML = `
+      <div class="empty-tires">
+        <span class="et-emoji">🛞</span>
+        Nessun pneumatico aggiunto<br>
+        Usa lo scanner QR o la ricerca per misura
+      </div>`;
+    return;
+  }
+  list.innerHTML = state.tires.map((t, i) => {
+    const sizeStr = formatTireSize(t.size);
+    const metaBits = [];
+    if (t.position) metaBits.push('📍 ' + t.position);
+    if (t.season && !t.position) metaBits.push(t.season);
+    if (t.dot)    metaBits.push('DOT ' + t.dot);
+    if (t.tread != null) metaBits.push(t.tread + 'mm');
+    if (t.ean)    metaBits.push('EAN ' + t.ean);
+    if (t.eprelId) metaBits.push('EPREL ' + t.eprelId);
+    // classi energetiche compatte se presenti
+    const ecoBits = [];
+    if (t.classCarb)   ecoBits.push('⛽' + t.classCarb);
+    if (t.classAder)   ecoBits.push('💧' + t.classAder);
+    if (t.classRumore) ecoBits.push('🔊' + t.classRumore);
+    if (ecoBits.length) metaBits.push(ecoBits.join(' '));
+    if (t.note) metaBits.push('"' + t.note + '"');
+    const meta = metaBits.join(' · ');
+    const tot = (t.price || 0) * (t.qty || 1);
+    return `
+      <div class="tire-card ${t.kind === 'used' ? 'used' : 'new'}">
+        <div class="tc-badge">${t.kind === 'used' ? '♻️' : '🛞'}</div>
+        <div class="tc-main">
+          <div class="tc-title">${escapeHtml(t.brand || 'Pneumatico ' + (t.kind==='used'?'usato':'nuovo'))}</div>
+          <div class="tc-sub">${escapeHtml(sizeStr || '—')}</div>
+          ${meta ? `<div class="tc-meta">${escapeHtml(meta)}</div>` : ''}
+        </div>
+        <div class="tc-right">
+          <button class="tc-remove" onclick="removeTire(${i})" title="Rimuovi">✕</button>
+          <div class="tc-price">${formatEuro(tot)}</div>
+          <div class="tc-qty">${t.qty}× ${formatEuro(t.price || 0)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function removeTire(i) {
+  state.tires.splice(i, 1);
+  renderTiresList();
+  snack('Pneumatico rimosso');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[<>&"']/g, c =>
+    ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ═══════════════════════════════════════════════════════
+//  SCANNER FOTOCAMERA (BarcodeDetector + jsQR fallback)
+// ═══════════════════════════════════════════════════════
+async function openScanner() {
+  const overlay = document.getElementById('scannerOverlay');
+  const video = document.getElementById('scannerVideo');
+  overlay.classList.add('open');
+  document.getElementById('scannerStatus').textContent = 'Avvio fotocamera...';
+
+  try {
+    state._scanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = state._scanStream;
+    await video.play();
+
+    // abilita pulsante torcia se supportato
+    const track = state._scanStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    document.getElementById('flashBtn').style.display = caps.torch ? 'flex' : 'none';
+
+    document.getElementById('scannerStatus').textContent = 'Inquadra QR · EAN · DOT';
+    state._scanActive = true;
+
+    // scelgo decoder: BarcodeDetector nativo (Chrome Android) o jsQR (fallback)
+    if ('BarcodeDetector' in window) {
+      try {
+        state._scanDetector = new BarcodeDetector({
+          formats: ['qr_code', 'ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'data_matrix']
+        });
+        scanLoopNative();
+      } catch(e) {
+        console.warn('BarcodeDetector init failed, uso jsQR');
+        scanLoopJsQR();
+      }
+    } else {
+      scanLoopJsQR();
+    }
+  } catch(e) {
+    document.getElementById('scannerStatus').textContent = 'Permesso fotocamera negato';
+    snack('⚠ Impossibile accedere alla fotocamera');
+    console.error(e);
+  }
+}
+
+async function scanLoopNative() {
+  if (!state._scanActive) return;
+  const video = document.getElementById('scannerVideo');
+  try {
+    const codes = await state._scanDetector.detect(video);
+    if (codes && codes.length) {
+      handleScanResult(codes[0].rawValue, codes[0].format);
+      return;
+    }
+  } catch(e) { /* ignora singolo errore, continua */ }
+  requestAnimationFrame(scanLoopNative);
+}
+
+function scanLoopJsQR() {
+  if (!state._scanActive) return;
+  if (typeof jsQR === 'undefined') {
+    // libreria non ancora caricata (defer), riprova
+    return setTimeout(scanLoopJsQR, 200);
+  }
+  const video = document.getElementById('scannerVideo');
+  const canvas = document.getElementById('scannerCanvas');
+  if (video.videoWidth) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
+    if (code) {
+      handleScanResult(code.data, 'qr_code');
+      return;
+    }
+  }
+  requestAnimationFrame(scanLoopJsQR);
+}
+
+function handleScanResult(rawValue, format) {
+  if (!state._scanActive) return;
+  state._scanActive = false;
+  // feedback visivo e vibrazione
+  if (navigator.vibrate) navigator.vibrate(60);
+  const flash = document.createElement('div');
+  flash.className = 'scanner-success-flash';
+  document.getElementById('scannerOverlay').appendChild(flash);
+  setTimeout(() => flash.remove(), 400);
+
+  const parsed = parseQRPayload(rawValue);
+  closeScanner();
+  // routing in base a tipo
+  routeScannedTire(parsed);
+}
+
+async function routeScannedTire(parsed) {
+  if (parsed.type === 'eprel') {
+    const hasProxy = !!(state.settings.eprelProxy || '').trim();
+
+    // Se c'è un proxy configurato, tenta fetch automatico
+    if (hasProxy) {
+      snack('🇪🇺 EPREL ' + parsed.eprelId + ' · caricamento dati...');
+      const data = await fetchEprelData(parsed.eprelId);
+
+      if (data) {
+        // ✓ Dati caricati: apri form già compilato
+        snack('✓ Dati EPREL caricati: ' + (data.brand || parsed.eprelId));
+        const parsedSize = parseTireSize(data.size) || {};
+        openManualAdd({
+          kind: 'new',
+          brand: data.brand || '',
+          size: parsedSize,
+          eprelId: parsed.eprelId,
+          link: parsed.link,
+          season: mapSeason(data.season),
+          liSi: data.liSi || parsedSize.liSi || '',
+          classCarb: data.classCarb || '',
+          classAder: data.classAder || '',
+          classRumore: data.classRumore || '',
+        });
+        return;
+      }
+      // Fetch fallito: continua col flusso manuale qui sotto
+      snack('⚠ Dati EPREL non disponibili · compila manualmente');
+    } else {
+      snack('🇪🇺 EPREL ' + parsed.eprelId + ' · apro scheda ufficiale');
+    }
+
+    // Flusso manuale (nessun proxy configurato o fetch fallito):
+    // 1. Apri pagina EPREL in nuova scheda
+    // 2. Apri form con ID+link precompilati + hint visivo
+    try {
+      window.open(parsed.link, '_blank', 'noopener');
+    } catch(e) {
+      console.warn('Impossibile aprire scheda EPREL:', e);
+    }
+
+    openManualAdd({
+      kind: 'new',
+      eprelId: parsed.eprelId,
+      link: parsed.link,
+      _hintEprel: true,
+    });
+
+    setTimeout(() => {
+      const el = document.getElementById('mBrand');
+      if (el) el.focus();
+    }, 400);
+
+  } else if (parsed.type === 'qf-json') {
+    // import diretto completo
+    const d = parsed.data;
+    state.tires.push({
+      kind: d.used ? 'used' : 'new',
+      brand: d.brand || '',
+      size: parseTireSize(d.size) || {},
+      season: d.season || 'estive',
+      qty: Math.min(4, Math.max(1, d.qty || 4)),
+      price: parseFloat(d.price || 0),
+      position: d.position || '',
+      ean: d.ean, dot: d.dot, tread: d.tread, eprelId: d.eprelId, link: d.link,
+    });
+    renderTiresList();
+    snack('✓ Pneumatico importato dal QR');
+  } else if (parsed.type === 'ean') {
+    snack('🏷 EAN ' + parsed.ean);
+    openManualAdd({ kind: 'new', ean: parsed.ean });
+  } else if (parsed.type === 'dot') {
+    const age = new Date().getFullYear() - parsed.year;
+    snack('♻️ DOT ' + parsed.dot + ' · pneumatico del ' + parsed.year + ' (' + age + ' anni)');
+    openManualAdd({ kind: 'used', dot: parsed.dot });
+  } else if (parsed.type === 'url') {
+    snack('🔗 URL rilevato');
+    if (parsed.size) {
+      openManualAdd({ kind: 'new', size: parsed.size, link: parsed.link });
+    } else {
+      // apri direttamente nella tab
+      if (confirm('URL rilevato dal QR:\n' + parsed.link + '\n\nAprire nel browser?')) {
+        window.open(parsed.link, '_blank', 'noopener');
+      }
+    }
+  } else if (parsed.type === 'size-text') {
+    snack('📏 Misura rilevata: ' + formatTireSize(parsed.size));
+    openManualAdd({ kind: 'new', size: parsed.size });
+  } else {
+    snack('⚠ QR non riconosciuto: ' + (parsed.raw || '').substr(0, 40));
+    openManualAdd({ kind: 'new' });
+  }
+}
+
+function mapSeason(s) {
+  if (!s) return 'estive';
+  const x = String(s).toLowerCase();
+  if (x.includes('winter') || x.includes('invern')) return 'invernali';
+  if (x.includes('all') || x.includes('4') || x.includes('tutte')) return '4stag';
+  return 'estive';
+}
+
+function closeScanner() {
+  state._scanActive = false;
+  document.getElementById('scannerOverlay').classList.remove('open');
+  if (state._scanStream) {
+    state._scanStream.getTracks().forEach(t => t.stop());
+    state._scanStream = null;
+  }
+  const video = document.getElementById('scannerVideo');
+  if (video) video.srcObject = null;
+}
+
+async function toggleFlash() {
+  if (!state._scanStream) return;
+  const track = state._scanStream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  if (!caps.torch) return;
+  const cur = track.getSettings().torch || false;
+  try {
+    await track.applyConstraints({ advanced: [{ torch: !cur }] });
+  } catch(e) { console.warn(e); }
+}
+
+function scannerToManual() {
+  closeScanner();
+  openManualAdd({ kind: 'new' });
+}
+
+// ═══════════════════════════════════════════════════════
+//  AGGIUNTA / MODIFICA MANUALE PNEUMATICO
+// ═══════════════════════════════════════════════════════
+function openManualAdd(prefill) {
+  state._manualCtx = prefill || { kind: 'new' };
+  document.getElementById('manualOverlay').classList.add('open');
+  setManualType(state._manualCtx.kind || 'new');
+  // pre-fill
+  document.getElementById('mBrand').value = state._manualCtx.brand || '';
+  const sz = state._manualCtx.size || {};
+  document.getElementById('mW').value = sz.w || '';
+  document.getElementById('mH').value = sz.h || '';
+  document.getElementById('mR').value = sz.r || '';
+  document.getElementById('mLiSi').value = state._manualCtx.liSi || (sz.liSi || '');
+  document.getElementById('mSeason').value = state._manualCtx.season || 'estive';
+  document.getElementById('mTread').value = state._manualCtx.tread || '';
+  document.getElementById('mDot').value = state._manualCtx.dot || '';
+  document.getElementById('mPrice').value = state._manualCtx.price || '';
+  document.getElementById('mPosition').value = state._manualCtx.position || '';
+  document.getElementById('mTireNote').value = state._manualCtx.note || '';
+  document.getElementById('mClassCarb').value = state._manualCtx.classCarb || '';
+  document.getElementById('mClassAder').value = state._manualCtx.classAder || '';
+  document.getElementById('mClassRumore').value = state._manualCtx.classRumore || '';
+  const qty = Math.min(4, Math.max(1, state._manualCtx.qty || 4));
+  state._manualCtx.qty = qty;
+  document.getElementById('mQtyVal').textContent = qty;
+  onPositionChange(); // se prefill ha posizione → forza qty=1
+
+  // titolo
+  let subtitle = (state._manualCtx.kind === 'used' ? 'Usato' : 'Nuovo') + ' · al preventivo';
+  if (state._manualCtx.eprelId) subtitle += ' · EPREL ' + state._manualCtx.eprelId;
+  if (state._manualCtx.ean) subtitle += ' · EAN ' + state._manualCtx.ean;
+  document.getElementById('manualSubtitle').textContent = subtitle;
+
+  // Hint visivo per scan EPREL: guida a copiare i dati dalla pagina EPREL aperta
+  const hintBox = document.getElementById('manualEprelHint');
+  if (state._manualCtx._hintEprel && state._manualCtx.link) {
+    if (hintBox) {
+      hintBox.innerHTML = `
+        <b>🇪🇺 Pagina EPREL aperta in una nuova scheda.</b><br>
+        Guarda lì <b>marca, modello e misura</b> e riportali qui sotto.<br>
+        <a href="${state._manualCtx.link}" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">↗ Riapri scheda EPREL ${state._manualCtx.eprelId}</a>
+      `;
+      hintBox.style.display = 'block';
+    }
+  } else if (hintBox) {
+    hintBox.style.display = 'none';
+  }
+}
+
+function closeManualAdd() {
+  document.getElementById('manualOverlay').classList.remove('open');
+  state._manualCtx = null;
+}
+
+function setManualType(t) {
+  state._manualCtx = state._manualCtx || {};
+  state._manualCtx.kind = t;
+  document.getElementById('typeNewBtn').classList.toggle('on', t === 'new');
+  document.getElementById('typeUsedBtn').classList.toggle('on', t === 'used');
+  document.getElementById('usedFields').style.display = (t === 'used') ? 'block' : 'none';
+}
+
+// Se seleziono una posizione specifica → qty = 1 fissa
+// (non ha senso "2 pneumatici sull'anteriore DX")
+function onPositionChange() {
+  const pos = document.getElementById('mPosition').value;
+  const qtyRow = document.getElementById('mQtyVal').parentElement;
+  if (pos) {
+    // posizione specifica → qty 1 forzata
+    document.getElementById('mQtyVal').textContent = '1';
+    if (state._manualCtx) state._manualCtx.qty = 1;
+    qtyRow.style.opacity = '0.4';
+    qtyRow.style.pointerEvents = 'none';
+  } else {
+    qtyRow.style.opacity = '1';
+    qtyRow.style.pointerEvents = 'auto';
+  }
+}
+
+function changeMQty(delta) {
+  // se posizione impostata, ignora
+  if (document.getElementById('mPosition').value) return;
+  const current = parseInt(document.getElementById('mQtyVal').textContent, 10) || 4;
+  const next = Math.max(1, Math.min(4, current + delta));
+  document.getElementById('mQtyVal').textContent = next;
+  if (state._manualCtx) state._manualCtx.qty = next;
+}
+
+function saveManualTire() {
+  const ctx = state._manualCtx || { kind: 'new' };
+  const brand = document.getElementById('mBrand').value.trim();
+  const w = parseInt(document.getElementById('mW').value, 10);
+  const h = parseInt(document.getElementById('mH').value, 10);
+  const r = parseInt(document.getElementById('mR').value, 10);
+  const liSi = document.getElementById('mLiSi').value.trim();
+  const season = document.getElementById('mSeason').value;
+  const price = parseFloat(document.getElementById('mPrice').value.replace(',', '.')) || 0;
+  const position = document.getElementById('mPosition').value;
+  const note = document.getElementById('mTireNote').value.trim();
+  const classCarb = document.getElementById('mClassCarb').value;
+  const classAder = document.getElementById('mClassAder').value;
+  const classRumore = document.getElementById('mClassRumore').value;
+  // se posizione specifica, qty = 1
+  const qty = position ? 1 : (parseInt(document.getElementById('mQtyVal').textContent, 10) || 4);
+  const tread = ctx.kind === 'used' ? (document.getElementById('mTread').value.trim() || null) : null;
+  const dot   = ctx.kind === 'used' ? (document.getElementById('mDot').value.trim() || null) : null;
+
+  if (!w || !h || !r) {
+    snack('⚠ Inserisci almeno la misura completa');
+    return;
+  }
+
+  state.tires.push({
+    kind: ctx.kind,
+    brand,
+    size: { w, h, r, cls: (ctx.size && ctx.size.cls) || '', liSi },
+    season,
+    qty, price,
+    position,
+    note,
+    tread, dot,
+    ean: ctx.ean || null,
+    eprelId: ctx.eprelId || null,
+    link: ctx.link || null,
+    classCarb: classCarb || null,
+    classAder: classAder || null,
+    classRumore: classRumore || null,
+  });
+  renderTiresList();
+  closeManualAdd();
+  snack('✓ Pneumatico aggiunto' + (position ? ' · ' + position : ''));
+}
+
+// ═══════════════════════════════════════════════════════
+//  RICERCA PER MISURA (mock + deep-link fornitori)
+// ═══════════════════════════════════════════════════════
+function openSearchSheet() {
+  document.getElementById('searchOverlay').classList.add('open');
+  document.getElementById('searchResults').innerHTML = '';
+  document.getElementById('resultsTabs').style.display = 'none';
+  document.getElementById('deeplinkSection').style.display = 'none';
+  updateSizeQuick();
+}
+
+function closeSearchSheet() {
+  document.getElementById('searchOverlay').classList.remove('open');
+}
+
+function closeSheetIfBg(e, id) {
+  if (e.target === document.getElementById(id)) {
+    document.getElementById(id).classList.remove('open');
+  }
+}
+
+function updateSizeQuick() {
+  const w = document.getElementById('sizeW').value;
+  const h = document.getElementById('sizeH').value;
+  const r = document.getElementById('sizeR').value;
+  const el = document.getElementById('sizeQuick');
+  if (w && h && r) {
+    el.innerHTML = 'Misura: <b>' + w + '/' + h + ' R' + r + '</b>';
+  } else {
+    el.innerHTML = 'Misura: <b>—</b>';
+  }
+}
+
+function runSearch() {
+  const w = parseInt(document.getElementById('sizeW').value, 10);
+  const h = parseInt(document.getElementById('sizeH').value, 10);
+  const r = parseInt(document.getElementById('sizeR').value, 10);
+  const season = document.getElementById('sizeSeason').value;
+
+  if (!w || !h || !r) {
+    snack('⚠ Inserisci misura completa (es. 255 / 55 / 17)');
+    return;
+  }
+  state._searchSize = { w, h, r, season };
+  state._searchResults = generateMockResults(w, h, r, season);
+  renderSearchResults();
+  renderDeepLinks(w, h, r);
+}
+
+// Genera risultati mock deterministici dalla misura:
+// simula 6 offerte da "fornitori" diversi con prezzi/stock plausibili.
+// I prezzi scalano col diametro (più grande = più caro).
+function generateMockResults(w, h, r, season) {
+  const seed = (w * 31 + h * 17 + r * 7) % 997;
+  const brands = [
+    { b: 'Michelin',    m: 'Primacy 4+',      q: 'premium' },
+    { b: 'Continental', m: 'PremiumContact 7',q: 'premium' },
+    { b: 'Pirelli',     m: 'Cinturato P7',    q: 'premium' },
+    { b: 'Goodyear',    m: 'EfficientGrip',   q: 'mid' },
+    { b: 'Hankook',     m: 'Ventus Prime 4',  q: 'mid' },
+    { b: 'Riken',       m: 'Road Performance',q: 'budget' },
+    { b: 'Nexen',       m: 'N\'Fera Primus',  q: 'budget' },
+    { b: 'Kumho',       m: 'Ecsta HS52',      q: 'mid' },
+  ];
+  const suppliers = ['Brenta', 'Borelli', 'Tyre24', 'Delticom', 'PneusExpert'];
+  const basePrice = 40 + (r - 13) * 8 + w * 0.18;
+  const list = [];
+  for (let i = 0; i < 8; i++) {
+    const br = brands[(seed + i) % brands.length];
+    const sup = suppliers[(seed + i * 3) % suppliers.length];
+    const qMul = br.q === 'premium' ? 1.8 : br.q === 'mid' ? 1.25 : 0.95;
+    const noise = ((seed + i * 11) % 17) - 8;
+    const price = Math.max(35, Math.round(basePrice * qMul + noise));
+    const stock = ((seed + i * 5) % 7);
+    const stockLabel = stock === 0 ? 'out' : stock < 3 ? 'low' : 'ok';
+    const qtyAvail = stock === 0 ? 0 : stock < 3 ? stock : (10 + (seed + i) % 20);
+    list.push({
+      brand: br.b,
+      model: br.m,
+      supplier: sup,
+      size: { w, h, r },
+      season: season || 'estive',
+      price,
+      stockLabel,
+      qtyAvail,
+      liSi: ['91V','94V','94W','91H'][(seed + i) % 4],
+      isMock: true,
+    });
+  }
+  list.sort((a, b) => a.price - b.price);
+  return list;
+}
+
+function filterResults(f) {
+  state._searchFilter = f;
+  document.querySelectorAll('#resultsTabs .tab-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.filter === f);
+  });
+  renderSearchResults();
+}
+
+function renderSearchResults() {
+  const box = document.getElementById('searchResults');
+  const tabs = document.getElementById('resultsTabs');
+  if (!state._searchResults.length) {
+    box.innerHTML = '';
+    tabs.style.display = 'none';
+    return;
+  }
+  tabs.style.display = 'flex';
+  let list = state._searchResults.slice();
+  if (state._searchFilter === 'stock') list = list.filter(r => r.stockLabel !== 'out');
+  if (state._searchFilter === 'best')  list = list.slice(0, 3);
+
+  const bestPrice = Math.min(...state._searchResults.filter(r => r.stockLabel !== 'out').map(r => r.price));
+
+  box.innerHTML = `
+    <div class="hint-box">
+      <b>DEMO</b> · risultati simulati localmente. Configura i tuoi fornitori B2B nelle Impostazioni per aprire la ricerca reale sui portali.
+    </div>
+  ` + list.map((r, i) => {
+    const isBest = r.price === bestPrice && r.stockLabel !== 'out';
+    const stockTxt = r.stockLabel === 'out' ? 'Esaurito' :
+                     r.stockLabel === 'low' ? 'Solo ' + r.qtyAvail + ' pz' :
+                     r.qtyAvail + ' pz disp.';
+    const idx = state._searchResults.indexOf(r);
+    return `
+      <div class="supplier-row ${isBest ? 'best' : ''}" style="position:relative;">
+        <div class="sr-main">
+          <div class="sr-brand">${escapeHtml(r.brand)} ${escapeHtml(r.model)} ${isBest ? '⭐' : ''}</div>
+          <div class="sr-sub">${r.size.w}/${r.size.h} R${r.size.r} ${r.liSi} · ${r.season}</div>
+          <div class="sr-supplier">${escapeHtml(r.supplier)}</div>
+        </div>
+        <div>
+          <div class="sr-price">${formatEuro(r.price)}</div>
+          <div class="sr-stock ${r.stockLabel}">${stockTxt}</div>
+          <button class="sr-action" onclick="addFromResult(${idx})" ${r.stockLabel === 'out' ? 'disabled style="opacity:0.4"' : ''}>+ Aggiungi</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function addFromResult(idx) {
+  const r = state._searchResults[idx];
+  if (!r) return;
+  state.tires.push({
+    kind: 'new',
+    brand: r.brand + ' ' + r.model,
+    size: { w: r.size.w, h: r.size.h, r: r.size.r, liSi: r.liSi },
+    season: r.season,
+    qty: 4,
+    price: r.price,
+    supplier: r.supplier,
+    mock: true,
+  });
+  renderTiresList();
+  closeSearchSheet();
+  snack('✓ ' + r.brand + ' ' + r.model + ' aggiunto');
+}
+
+function renderDeepLinks(w, h, r) {
+  const suppliers = state.settings.suppliers || DEFAULT_SUPPLIERS;
+  const sec = document.getElementById('deeplinkSection');
+  const box = document.getElementById('deeplinkList');
+  if (!suppliers.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  box.innerHTML = suppliers.map(s => {
+    const url = (s.urlTpl || '')
+      .replace(/\{w\}/g, w)
+      .replace(/\{h\}/g, h)
+      .replace(/\{r\}/g, r);
+    return `<a class="deeplink-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(s.name)}</a>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  FORNITORI B2B — CRUD in Settings
+// ═══════════════════════════════════════════════════════
+function renderSuppliersList() {
+  const list = document.getElementById('suppliersList');
+  if (!list) return;
+  const suppliers = state.settings.suppliers || DEFAULT_SUPPLIERS;
+  if (!suppliers.length) {
+    list.innerHTML = '<div style="font-size:11px; color:var(--text3); font-family:\'DM Mono\',monospace; margin-bottom:8px;">Nessun fornitore configurato.</div>';
+    return;
+  }
+  list.innerHTML = suppliers.map((s, i) => `
+    <div class="supplier-cfg">
+      <div>
+        <div class="scfg-name">${escapeHtml(s.name)}</div>
+        <div class="scfg-url">${escapeHtml(s.urlTpl || '')}</div>
+      </div>
+      <button class="scfg-del" onclick="removeSupplier(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function addSupplier() {
+  const name = document.getElementById('newSupName').value.trim();
+  const url  = document.getElementById('newSupUrl').value.trim();
+  if (!name || !url) { snack('⚠ Inserisci nome e URL'); return; }
+  if (!/https?:\/\//i.test(url)) { snack('⚠ URL deve iniziare con https://'); return; }
+  state.settings.suppliers = state.settings.suppliers || DEFAULT_SUPPLIERS.slice();
+  state.settings.suppliers.push({ name, urlTpl: url });
+  localStorage.setItem('qf_settings', JSON.stringify(state.settings));
+  document.getElementById('newSupName').value = '';
+  document.getElementById('newSupUrl').value = '';
+  renderSuppliersList();
+  snack('✓ Fornitore aggiunto');
+}
+
+function removeSupplier(i) {
+  state.settings.suppliers = state.settings.suppliers || [];
+  state.settings.suppliers.splice(i, 1);
+  localStorage.setItem('qf_settings', JSON.stringify(state.settings));
+  renderSuppliersList();
+}
+
+// ═══════════════════════════════════════════════════════
+//  ═════════ FINE MODULO PNEUMATICI ═══════════════════
+// ═══════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════
+//  SERVIZI GRID
+// ═══════════════════════════════════════════════════════
+function renderServiziGrid() {
+  const grid = document.getElementById('serviziGrid');
+  grid.innerHTML = LISTINO.map(s => `
+    <div class="servizio-tile ${state.serviziSelezionati[s.id] ? 'selected' : ''}"
+         id="tile_${s.id}" onclick="toggleServizio('${s.id}')">
+      <div class="tile-icon">${s.icona}</div>
+      <div class="tile-name">${s.nome}</div>
+      <div class="tile-price">${formatEuro(s.prezzo)} / ${s.desc}</div>
+    </div>
+  `).join('');
+}
+
+function toggleServizio(id) {
+  state.serviziSelezionati[id] = !state.serviziSelezionati[id];
+  const tile = document.getElementById('tile_' + id);
+  tile.classList.toggle('selected', state.serviziSelezionati[id]);
+
+  // mostra qty se almeno un servizio perGomma è selezionato
+  const hasPerGomma = LISTINO.some(s => s.perGomma && state.serviziSelezionati[s.id]);
+  document.getElementById('qtySection').style.display = hasPerGomma ? 'block' : 'none';
+}
+
+function changeQty(delta) {
+  state.qty = Math.max(1, Math.min(20, state.qty + delta));
+  document.getElementById('qtyVal').textContent = state.qty;
+}
+
+// ═══════════════════════════════════════════════════════
+//  CALCOLO
+// ═══════════════════════════════════════════════════════
+function calcolaPreventivo() {
+  let righeTires = [];
+  let righeSrv = [];
+  let totale = 0, costo = 0;
+
+  // Pneumatici (costo: conservativo 70% del prezzo di vendita come costo fornitore stimato)
+  state.tires.forEach(t => {
+    const sizeStr = formatTireSize(t.size);
+    const posStr = t.position ? ' · ' + t.position : '';
+    const nome = (t.brand || (t.kind === 'used' ? 'Pneumatico usato' : 'Pneumatico nuovo')) +
+                 (sizeStr ? ' ' + sizeStr : '') + posStr;
+    const prezzo = t.price || 0;
+    const qty = t.qty || 1;
+    const totRiga = prezzo * qty;
+    const costoRiga = prezzo * 0.70 * qty;
+    righeTires.push({
+      icona: t.kind === 'used' ? '♻️' : '🛞',
+      nome,
+      qty,
+      prezzoUnit: prezzo,
+      totRiga,
+      costoRiga,
+      tire: t
+    });
+    totale += totRiga;
+    costo  += costoRiga;
+  });
+
+  // Servizi
+  LISTINO.forEach(s => {
+    if (!state.serviziSelezionati[s.id]) return;
+    const qty = s.perGomma ? state.qty : 1;
+    const totRiga = s.prezzo * qty;
+    const costoRiga = s.costoStima * qty;
+    righeSrv.push({ ...s, qty, totRiga, costoRiga });
+    totale += totRiga;
+    costo  += costoRiga;
+  });
+
+  const righe = [...righeTires, ...righeSrv];
+  const margine = totale - costo;
+  const percMargine = totale > 0 ? (margine / totale * 100) : 0;
+
+  return { righe, righeTires, righeSrv, totale, costo, margine, percMargine };
+}
+
+// ═══════════════════════════════════════════════════════
+//  RIEPILOGO HTML
+// ═══════════════════════════════════════════════════════
+function buildRiepilogo() {
+  const { righeTires, righeSrv, totale, margine, percMargine } = calcolaPreventivo();
+  const now = new Date();
+  const dataStr = now.toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const oraStr  = now.toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' });
+  const numPrev = 'QF-' + Date.now().toString().slice(-6);
+
+  const tiresHtml = righeTires.length ? `
+    <div class="riepilogo-card">
+      <div class="riepilogo-row" style="border-bottom: 1px solid var(--border2); padding-top:0;">
+        <span style="font-size:10px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:0.1em;">PNEUMATICI</span>
+      </div>
+      ${righeTires.map(r => {
+        const t = r.tire;
+        const extraLinks = t.eprelId ?
+          `<div style="font-size:10px; color:var(--accent); font-family:'DM Mono',monospace; margin-top:2px;">🇪🇺 EPREL ${t.eprelId}</div>` : '';
+        return `
+        <div class="riepilogo-row">
+          <span class="name">${r.icona} ${escapeHtml(r.nome)}${extraLinks}</span>
+          <span class="qty-label">×${r.qty}</span>
+          <span class="price">${formatEuro(r.totRiga)}</span>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const servHtml = righeSrv.length ? `
+    <div class="riepilogo-card">
+      <div class="riepilogo-row" style="border-bottom: 1px solid var(--border2); padding-top:0;">
+        <span style="font-size:10px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:0.1em;">SERVIZI</span>
+      </div>
+      ${righeSrv.map(r => `
+      <div class="riepilogo-row">
+        <span class="name">${r.icona} ${r.nome}</span>
+        ${r.qty > 1 ? `<span class="qty-label">×${r.qty}</span>` : ''}
+        <span class="price">${formatEuro(r.totRiga)}</span>
+      </div>`).join('')}
+    </div>` : '';
+
+  const html = `
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      ${dataStr} · ${oraStr} · ${numPrev}
+    </div>
+
+    <div class="riepilogo-card">
+      <div class="riepilogo-row">
+        <span class="name" style="color:var(--text);font-weight:700;">${escapeHtml(state.cliente.nome)}</span>
+        <span class="price" style="color:var(--text2);font-size:13px;">${escapeHtml(state.cliente.targa || state.cliente.tipo)}</span>
+      </div>
+    </div>
+
+    ${tiresHtml}
+    ${servHtml}
+
+    ${state.note ? `
+    <div class="riepilogo-card">
+      <div class="riepilogo-row">
+        <span class="name" style="font-size:13px;color:var(--text3);">📝 ${escapeHtml(state.note)}</span>
+      </div>
+    </div>` : ''}
+
+    <div class="totale-box">
+      <div class="totale-label">TOTALE PREVENTIVO</div>
+      <div class="totale-value">${formatEuro(totale)}</div>
+    </div>
+
+    <div class="margine-box">
+      <div class="margine-item">
+        <div class="mlabel">Margine €</div>
+        <div class="mvalue ${percMargine < 25 ? 'warn' : ''}">${formatEuro(margine)}</div>
+      </div>
+      <div class="margine-item">
+        <div class="mlabel">Margine %</div>
+        <div class="mvalue ${percMargine < 25 ? 'warn' : ''}">${percMargine.toFixed(1)}%</div>
+      </div>
+      <div class="margine-item">
+        <div class="mlabel">Pezzi</div>
+        <div class="mvalue" style="color:var(--text2);">${righeTires.length + righeSrv.length}</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('previewArea').innerHTML = html;
+
+  // Salva dati per PDF/TXT
+  window._qfData = { righeTires, righeSrv, totale, margine, percMargine, dataStr, oraStr, numPrev };
+}
+
+// ═══════════════════════════════════════════════════════
+//  OUTPUT — TXT
+// ═══════════════════════════════════════════════════════
+function buildTXT() {
+  const { righeTires, righeSrv, totale, dataStr, oraStr, numPrev } = window._qfData;
+  const s = state.settings;
+  const officina = s.officina || 'Officina';
+  let txt = '';
+  txt += `══════════════════════════════\n`;
+  txt += `  ${officina.toUpperCase()}\n`;
+  if (s.indirizzo) txt += `  ${s.indirizzo}\n`;
+  if (s.tel)       txt += `  Tel: ${s.tel}\n`;
+  if (s.piva)      txt += `  P.IVA ${s.piva}\n`;
+  txt += `══════════════════════════════\n\n`;
+  txt += `PREVENTIVO ${numPrev}\n`;
+  txt += `Data: ${dataStr} · ${oraStr}\n\n`;
+  txt += `CLIENTE: ${state.cliente.nome}\n`;
+  if (state.cliente.tel)    txt += `Tel:    ${state.cliente.tel}\n`;
+  if (state.cliente.targa)  txt += `Targa:  ${state.cliente.targa}\n`;
+  txt += `Veicolo: ${state.cliente.tipo}\n\n`;
+
+  if (righeTires.length) {
+    txt += `──────────────────────────────\n`;
+    txt += `PNEUMATICI\n`;
+    txt += `──────────────────────────────\n`;
+    righeTires.forEach(r => {
+      const qtyLabel = ` x${r.qty}`;
+      txt += `${r.nome.slice(0,22).padEnd(22)}${qtyLabel.padEnd(4)}${formatEuro(r.totRiga)}\n`;
+      const bits = [];
+      if (r.tire.position) bits.push(r.tire.position);
+      if (r.tire.eprelId)  bits.push('EPREL ' + r.tire.eprelId);
+      if (r.tire.ean)      bits.push('EAN ' + r.tire.ean);
+      if (r.tire.dot)      bits.push('DOT ' + r.tire.dot + (r.tire.tread ? ' - ' + r.tire.tread + 'mm' : ''));
+      if (r.tire.classCarb || r.tire.classAder) {
+        const eco = [];
+        if (r.tire.classCarb) eco.push('Carb.' + r.tire.classCarb);
+        if (r.tire.classAder) eco.push('Bagn.' + r.tire.classAder);
+        if (r.tire.classRumore) eco.push('Rum.' + r.tire.classRumore);
+        bits.push(eco.join('/'));
+      }
+      if (bits.length) txt += `  ${bits.join(' · ')}\n`;
+      if (r.tire.link) txt += `  ${r.tire.link}\n`;
+      if (r.tire.note) txt += `  Note: ${r.tire.note}\n`;
+    });
+    txt += `\n`;
+  }
+
+  if (righeSrv.length) {
+    txt += `──────────────────────────────\n`;
+    txt += `SERVIZI\n`;
+    txt += `──────────────────────────────\n`;
+    righeSrv.forEach(r => {
+      const qtyLabel = r.qty > 1 ? ` x${r.qty}` : '';
+      txt += `${(r.nome + qtyLabel).padEnd(26)}${formatEuro(r.totRiga)}\n`;
+    });
+    txt += `\n`;
+  }
+
+  txt += `──────────────────────────────\n`;
+  txt += `TOTALE:`.padEnd(26) + formatEuro(totale) + '\n';
+  txt += `══════════════════════════════\n`;
+  if (state.note) txt += `\nNote: ${state.note}\n`;
+  txt += `\nPreventivo valido 30 giorni.\nGenerato con QuoteFlash · PezzaliApp\n`;
+  return txt;
+}
+
+function copiaTXT() {
+  const txt = buildTXT();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(() => snack('✓ Testo copiato negli appunti'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    snack('✓ Testo copiato');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  OUTPUT — WHATSAPP
+// ═══════════════════════════════════════════════════════
+function apriWhatsApp() {
+  const { righeTires, righeSrv, totale, numPrev, dataStr } = window._qfData;
+  const s = state.settings;
+  const officina = s.officina || 'la nostra officina';
+
+  let msg = `*Preventivo ${numPrev}* · ${dataStr}\n`;
+  msg += `━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `Cliente: *${state.cliente.nome}*\n`;
+  if (state.cliente.targa) msg += `Targa: ${state.cliente.targa}\n`;
+
+  if (righeTires.length) {
+    msg += `\n*Pneumatici:*\n`;
+    righeTires.forEach(r => {
+      msg += `• ${r.nome} ×${r.qty} — ${formatEuro(r.totRiga)}\n`;
+      if (r.tire.eprelId) msg += `  🇪🇺 Scheda energetica: ${r.tire.link}\n`;
+    });
+  }
+
+  if (righeSrv.length) {
+    msg += `\n*Servizi:*\n`;
+    righeSrv.forEach(r => {
+      msg += `• ${r.nome}${r.qty > 1 ? ' ×' + r.qty : ''} — ${formatEuro(r.totRiga)}\n`;
+    });
+  }
+
+  msg += `━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `*TOTALE: ${formatEuro(totale)}*\n`;
+  if (state.note) msg += `\n_${state.note}_\n`;
+  msg += `\n_Preventivo valido 30 giorni · ${officina}_`;
+
+  const numero = (state.cliente.tel ? state.cliente.tel.replace(/\D/g, '') : '') || s.whatsapp || '';
+  const url = `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
+// ═══════════════════════════════════════════════════════
+//  OUTPUT — PDF (jsPDF)
+// ═══════════════════════════════════════════════════════
+async function generaPDF() {
+  const btn = document.getElementById('pdfBtnText');
+  btn.innerHTML = '<span class="spinner"></span> Generazione…';
+
+  await new Promise(r => setTimeout(r, 50));
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const { righeTires, righeSrv, totale, margine, numPrev, dataStr, oraStr } = window._qfData;
+    const s = state.settings;
+    const officina = s.officina || 'Officina';
+
+    const BG    = '#0a0a0a';
+    const ACCENT= '#e8ff47';
+    const WHITE = '#f0f0f0';
+    const GRAY  = '#888888';
+    const W = 210; const H = 297;
+
+    // Sfondo header
+    doc.setFillColor(BG);
+    doc.rect(0, 0, W, 45, 'F');
+
+    // Logo testo
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(WHITE);
+    doc.text('Quote', 15, 20);
+
+    doc.setTextColor(ACCENT);
+    doc.text('Flash', 15 + doc.getTextWidth('Quote'), 20);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(GRAY);
+    doc.text('by PezzaliApp', 15, 26);
+
+    // Numero preventivo
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(ACCENT);
+    doc.text(numPrev, W - 15, 16, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(GRAY);
+    doc.text(`${dataStr} · ${oraStr}`, W - 15, 22, { align: 'right' });
+
+    // Officina info
+    if (officina !== 'Officina') {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(WHITE);
+      doc.text(officina, W - 15, 30, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(GRAY);
+      if (s.tel)       doc.text(s.tel, W - 15, 35, { align: 'right' });
+      if (s.indirizzo) doc.text(s.indirizzo, W - 15, 40, { align: 'right' });
+    }
+
+    // Sfondo main
+    doc.setFillColor('#ffffff');
+    doc.rect(0, 45, W, H - 45, 'F');
+
+    let y = 58;
+
+    // Cliente
+    doc.setFillColor('#f5f5f5');
+    doc.roundedRect(12, y - 4, W - 24, 28, 3, 3, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(GRAY);
+    doc.text('CLIENTE', 18, y + 2);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor('#111111');
+    doc.text(state.cliente.nome, 18, y + 10);
+
+    let clienteInfo = [];
+    if (state.cliente.tel)   clienteInfo.push(state.cliente.tel);
+    if (state.cliente.targa) clienteInfo.push('Targa: ' + state.cliente.targa);
+    clienteInfo.push(state.cliente.tipo);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(GRAY);
+    doc.text(clienteInfo.join('  ·  '), 18, y + 18);
+
+    y += 36;
+
+    // ── Helper: sezione con header + righe ──
+    const renderSection = (title, rows, isTires) => {
+      if (!rows.length) return;
+      // header sezione nera
+      doc.setFillColor(BG);
+      doc.rect(12, y, W - 24, 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(ACCENT);
+      doc.text(title, 18, y + 5.5);
+      doc.setTextColor(WHITE);
+      doc.text('QTÀ', 130, y + 5.5, { align: 'center' });
+      doc.text('IMPORTO', W - 18, y + 5.5, { align: 'right' });
+      y += 12;
+
+      rows.forEach((r, i) => {
+        // stima spazio necessario (riga base + sottoriga EPREL)
+        const needs = isTires && r.tire && (r.tire.eprelId || r.tire.ean || r.tire.dot) ? 13 : 9;
+        if (y + needs > H - 50) {
+          // nuova pagina
+          doc.addPage();
+          doc.setFillColor('#ffffff');
+          doc.rect(0, 0, W, H, 'F');
+          y = 20;
+        }
+        if (i % 2 === 0) {
+          doc.setFillColor('#f9f9f9');
+          doc.rect(12, y - 4, W - 24, needs, 'F');
+        }
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor('#222222');
+        // tronca nome se troppo lungo
+        const nome = r.nome.length > 60 ? r.nome.slice(0, 58) + '…' : r.nome;
+        doc.text(nome, 18, y + 1);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(GRAY);
+        doc.setFontSize(9);
+        doc.text(r.qty > 1 ? '×' + r.qty : '—', 130, y + 1, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor('#222222');
+        doc.text(formatEuro(r.totRiga), W - 18, y + 1, { align: 'right' });
+        // riga info tecnica pneumatico
+        if (isTires && r.tire) {
+          const bits = [];
+          if (r.tire.position) bits.push(r.tire.position);
+          if (r.tire.eprelId) bits.push('EPREL ' + r.tire.eprelId);
+          if (r.tire.ean) bits.push('EAN ' + r.tire.ean);
+          if (r.tire.dot) bits.push('DOT ' + r.tire.dot);
+          if (r.tire.tread) bits.push(r.tire.tread + ' mm');
+          if (r.tire.classCarb)   bits.push('Carb.' + r.tire.classCarb);
+          if (r.tire.classAder)   bits.push('Bagn.' + r.tire.classAder);
+          if (r.tire.classRumore) bits.push('Rumore ' + r.tire.classRumore);
+          if (r.tire.note) bits.push('"' + r.tire.note + '"');
+          if (bits.length) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor('#999999');
+            doc.text(bits.join(' · '), 18, y + 5);
+          }
+        }
+        y += needs;
+      });
+      y += 4;
+    };
+
+    renderSection('PNEUMATICI', righeTires, true);
+    renderSection('SERVIZI', righeSrv, false);
+
+    // Note
+    if (state.note) {
+      if (y + 14 > H - 50) { doc.addPage(); y = 20; }
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.setTextColor(GRAY);
+      doc.text('Note: ' + state.note, 18, y);
+      y += 8;
+    }
+
+    y += 6;
+    if (y + 30 > H - 20) { doc.addPage(); y = 20; }
+
+    // Linea separatore
+    doc.setDrawColor('#dddddd');
+    doc.setLineWidth(0.3);
+    doc.line(12, y, W - 12, y);
+    y += 8;
+
+    // Box totale
+    doc.setFillColor(BG);
+    doc.roundedRect(12, y, W - 24, 18, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(ACCENT);
+    doc.text('TOTALE PREVENTIVO', 20, y + 11);
+    doc.setFontSize(16);
+    doc.setTextColor('#ffffff');
+    doc.text(formatEuro(totale), W - 20, y + 11, { align: 'right' });
+    y += 26;
+
+    // Margine (solo per operatore — stampa solo se > 0 ha senso)
+    doc.setFillColor('#f0f8f0');
+    doc.roundedRect(12, y, (W - 28) / 2, 14, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(GRAY);
+    doc.text('MARGINE STIMATO', 20, y + 5);
+    doc.setFontSize(11);
+    doc.setTextColor('#27ae60');
+    doc.text(formatEuro(margine), 20, y + 11);
+
+    y += 22;
+
+    // Nota EPREL se pneumatici con ID presenti
+    const hasEprel = righeTires.some(r => r.tire && r.tire.eprelId);
+    if (hasEprel) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(GRAY);
+      doc.text('Schede energetiche consultabili su eprel.ec.europa.eu tramite il codice EPREL di ciascun pneumatico.', 15, y);
+      y += 6;
+    }
+
+    // Validità
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(GRAY);
+    doc.text('Preventivo valido 30 giorni dalla data di emissione.', 15, y);
+
+    // Footer
+    doc.setFillColor(BG);
+    doc.rect(0, H - 16, W, 16, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(GRAY);
+    doc.text('Generato con QuoteFlash · PezzaliApp · pezzaliapp.com', W / 2, H - 7, { align: 'center' });
+    if (s.piva) {
+      doc.text('P.IVA ' + s.piva, 15, H - 7);
+    }
+
+    doc.save(`Preventivo_${numPrev}_${state.cliente.nome.replace(/\s+/g,'_')}.pdf`);
+    snack('✓ PDF scaricato');
+  } catch(e) {
+    snack('⚠ Errore PDF: ' + e.message);
+    console.error(e);
+  }
+
+  btn.innerHTML = '📄 Scarica PDF';
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAKE.COM WEBHOOK
+// ═══════════════════════════════════════════════════════
+async function inviaWebhook() {
+  const url = state.settings.webhook;
+  if (!url) return;
+
+  const { righeTires, righeSrv, totale, margine, percMargine, numPrev, dataStr, oraStr } = window._qfData || {};
+  if (!righeSrv && !righeTires) return;
+
+  const payload = {
+    preventivo: numPrev,
+    data: dataStr,
+    ora: oraStr,
+    cliente: { ...state.cliente },
+    pneumatici: (righeTires || []).map(r => ({
+      tipo: r.tire.kind,
+      brand: r.tire.brand,
+      size: formatTireSize(r.tire.size),
+      posizione: r.tire.position || null,
+      qty: r.qty,
+      prezzo_unit: r.prezzoUnit,
+      totale: r.totRiga,
+      eprel: r.tire.eprelId || null,
+      ean: r.tire.ean || null,
+      dot: r.tire.dot || null,
+      tread: r.tire.tread || null,
+      classe_carburante: r.tire.classCarb || null,
+      classe_bagnato: r.tire.classAder || null,
+      classe_rumore: r.tire.classRumore || null,
+      note: r.tire.note || null,
+      link: r.tire.link || null,
+    })),
+    servizi: (righeSrv || []).map(r => ({ nome: r.nome, qty: r.qty, prezzo: r.totRiga })),
+    totale,
+    margine: parseFloat(margine.toFixed(2)),
+    margine_perc: parseFloat(percMargine.toFixed(1)),
+    note: state.note,
+    officina: state.settings.officina || '',
+    source: 'QuoteFlash-v2'
+  };
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      mode: 'no-cors'
+    });
+    snack('↗ Log inviato a Make.com');
+  } catch(e) {
+    console.warn('Webhook error:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  RESET
+// ═══════════════════════════════════════════════════════
+function nuovoPreventivo() {
+  state.tires = [];
+  state.serviziSelezionati = {};
+  state.qty = 4;
+  state.note = '';
+  state.cliente = { nome:'', tel:'', targa:'', tipo:'Auto' };
+
+  document.getElementById('clienteNome').value = '';
+  document.getElementById('clienteTel').value = '';
+  document.getElementById('clienteTarga').value = '';
+  document.getElementById('clienteTipo').value = 'Auto';
+  document.getElementById('noteExtra').value = '';
+  document.getElementById('qtyVal').textContent = '4';
+  document.getElementById('qtySection').style.display = 'none';
+  renderServiziGrid();
+  renderTiresList();
+  goToStep(0);
+  snack('+ Nuovo preventivo pronto');
+}
+
+// ═══════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════
+function openSettings()  { document.getElementById('settingsOverlay').classList.add('open'); }
+function closeSettings() { document.getElementById('settingsOverlay').classList.remove('open'); }
+function closeSettingsIfBg(e) { if (e.target === document.getElementById('settingsOverlay')) closeSettings(); }
+
+// ═══════════════════════════════════════════════════════
+//  UTILITY
+// ═══════════════════════════════════════════════════════
+function formatEuro(n) { return '€ ' + parseFloat(n).toFixed(2).replace('.', ','); }
+
+function snack(msg) {
+  const el = document.getElementById('snackbar');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(r => console.log('QuoteFlash SW registrato:', r.scope))
+      .catch(e => console.warn('SW error:', e));
+  });
+}
+</script>
+</body>
+</html>

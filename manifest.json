@@ -1,0 +1,42 @@
+{
+  "name": "QuoteFlash · Preventivo Rapido",
+  "short_name": "QuoteFlash",
+  "description": "Preventivi rapidi per officine e gommisti · PezzaliApp",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Nuovo preventivo",
+      "short_name": "Nuovo",
+      "url": "./index.html",
+      "description": "Crea un nuovo preventivo"
+    }
+  ]
+}
